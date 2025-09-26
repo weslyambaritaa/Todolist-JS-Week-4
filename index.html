@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo List</title>
+
+    <!-- Bootstrap v5.3 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" />
+    <!-- SortableJS -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+      .todo-item {
+        cursor: move;
+      }
+      .sortable-ghost {
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container mt-5">
+      <div>
+        <h1>Todo List</h1>
+
+        <hr />
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="btn-group" role="group">
+              <button type="button" class="btn btn-outline-primary filter-btn active" data-filter="all">Semua</button>
+              <button type="button" class="btn btn-outline-primary filter-btn" data-filter="active">Belum Selesai</button>
+              <button type="button" class="btn btn-outline-primary filter-btn" data-filter="completed">Selesai</button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="input-group">
+              <input type="text" id="searchInput" class="form-control" placeholder="Cari Todo ...">
+              <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                <i class="bi bi-x"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <form id="formData">
+          <div class="mb-3">
+            <label for="text" class="form-label">
+              Apa rencana kamu selanjutnya?
+            </label>
+            <div class="input-group flex-nowrap">
+              <input type="text" class="form-control" name="todo" id="todoInput" />
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus"></i> Tambah
+              </button>
+            </div>
+            <div id="validationFeedback" class="text-danger mt-1 d-none">Todo dengan judul ini sudah ada!</div>
+          </div>
+        </form>
+
+        <ul class="list-group" id="todoList">
+          <!-- Todo items akan di-render di sini -->
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      let todos = [];
+      let currentFilter = 'all';
+      let searchQuery = '';
+      let sortable;
+
+      // Fungsi untuk menyimpan todos ke localStorage
+      function saveTodos() {
+        localStorage.setItem("todos", JSON.stringify(todos));
+      }
+
+      // Fungsi untuk merender todos
+      function renderTodos() {
+        const todoList = document.getElementById("todoList");
+        todoList.innerHTML = ""; // Kosongkan daftar todo
+
+        // Filter dan cari todos
+        const filteredTodos = todos.filter(todo => {
+          // Filter berdasarkan status
+          let statusMatch = true;
+          if (currentFilter === 'completed') statusMatch = todo.completed;
+          if (currentFilter === 'active') statusMatch = !todo.completed;
+          
+          // Filter berdasarkan pencarian
+          const searchMatch = todo.todo.toLowerCase().includes(searchQuery);
+          
+          return statusMatch && searchMatch;
+        });
+
+        if (filteredTodos.length === 0) {
+          const emptyMessage = document.createElement('li');
+          emptyMessage.className = 'list-group-item text-center text-muted';
+          emptyMessage.textContent = 'Tidak ada todo yang ditampilkan';
+          todoList.appendChild(emptyMessage);
+          return;
+        }
+
+        filteredTodos.forEach((item, index) => {
+          const originalIndex = todos.findIndex(t => t.id === item.id);
+          const li = document.createElement("li");
+          li.className = "list-group-item d-flex align-items-center todo-item";
+          li.dataset.id = item.id;
+
+          const div = document.createElement("div");
+          div.className = "flex-fill";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "form-check-input me-2";
+          checkbox.checked = item.completed;
+          checkbox.addEventListener("change", () => {
+            item.completed = checkbox.checked;
+            saveTodos();
+            renderTodos();
+          });
+
+          const label = document.createElement("label");
+          label.className = "form-check-label me-auto";
+          if (item.completed) {
+            label.style.textDecoration = "line-through";
+            label.style.color = "#6c757d";
+          } else {
+            label.style.textDecoration = "none";
+            label.style.color = "inherit";
+          }
+          label.textContent = item.todo;
+
+          div.appendChild(checkbox);
+          div.appendChild(label);
+
+          // Tombol Edit
+          const editButton = document.createElement('button');
+          editButton.className = 'btn btn-sm btn-outline-primary me-2';
+          editButton.innerHTML = '<i class="bi bi-pencil"></i>';
+          editButton.addEventListener('click', () => {
+            editTodo(originalIndex);
+          });
+
+          // Tombol Hapus
+          const deleteButton = document.createElement("button");
+          deleteButton.className = "btn btn-sm btn-outline-danger";
+          deleteButton.innerHTML = '<i class="bi bi-trash"></i>';
+          deleteButton.addEventListener("click", () => {
+            deleteTodo(originalIndex);
+          });
+
+          li.appendChild(div);
+          li.appendChild(editButton);
+          li.appendChild(deleteButton);
+          todoList.appendChild(li);
+        });
+
+        // Inisialisasi ulang Sortable setelah render
+        if (sortable) {
+          sortable.destroy();
+        }
+        initSortable();
+      }
+
+      // Fungsi untuk mengedit todo
+      function editTodo(index) {
+        const newText = prompt('Edit todo:', todos[index].todo);
+        if (newText !== null && newText.trim() !== '') {
+          // Validasi duplikat
+          const isDuplicate = todos.some((todo, i) => 
+            i !== index && todo.todo.toLowerCase() === newText.trim().toLowerCase()
+          );
+          
+          if (isDuplicate) {
+            alert("Todo dengan judul ini sudah ada!");
+            return;
+          }
+          
+          todos[index].todo = newText.trim();
+          saveTodos();
+          renderTodos();
+        }
+      }
+
+      // Fungsi untuk menghapus todo
+      function deleteTodo(index) {
+        if (confirm('Apakah Anda yakin ingin menghapus todo ini?')) {
+          todos.splice(index, 1);
+          saveTodos();
+          renderTodos();
+        }
+      }
+
+      // Inisialisasi Sortable
+      function initSortable() {
+        const todoList = document.getElementById("todoList");
+        sortable = new Sortable(todoList, {
+          animation: 150,
+          ghostClass: 'sortable-ghost',
+          onEnd: function(evt) {
+            // Dapatkan ID item yang dipindahkan
+            const movedId = parseInt(evt.item.dataset.id);
+            
+            // Cari index asli dari item yang dipindahkan
+            const fromIndex = todos.findIndex(todo => todo.id === movedId);
+            
+            // Hitung newIndex yang benar dalam array todos asli
+            let visibleIndex = 0;
+            let actualNewIndex = -1;
+            
+            for (let i = 0; i < todos.length; i++) {
+              const todo = todos[i];
+              let statusMatch = true;
+              if (currentFilter === 'completed') statusMatch = todo.completed;
+              if (currentFilter === 'active') statusMatch = !todo.completed;
+              const searchMatch = todo.todo.toLowerCase().includes(searchQuery);
+              
+              if (statusMatch && searchMatch) {
+                if (visibleIndex === evt.newIndex) {
+                  actualNewIndex = i;
+                  break;
+                }
+                visibleIndex++;
+              }
+            }
+            
+            if (actualNewIndex === -1) actualNewIndex = todos.length;
+            
+            // Pindahkan item dalam array
+            const movedItem = todos.splice(fromIndex, 1)[0];
+            todos.splice(actualNewIndex, 0, movedItem);
+            
+            // Simpan perubahan
+            saveTodos();
+            renderTodos();
+          }
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("formData");
+        const searchInput = document.getElementById("searchInput");
+        const clearSearch = document.getElementById("clearSearch");
+        const validationFeedback = document.getElementById("validationFeedback");
+
+        // Muat todos dari localStorage
+        const storedTodos = localStorage.getItem("todos");
+        if (storedTodos) {
+          todos = JSON.parse(storedTodos);
+          // Tambahkan ID jika belum ada (untuk kompatibilitas dengan data lama)
+          todos.forEach((todo, index) => {
+            if (!todo.id) {
+              todo.id = Date.now() + index;
+            }
+          });
+        }
+
+        // Event listener untuk filter buttons
+        document.querySelectorAll('.filter-btn').forEach(button => {
+          button.addEventListener('click', function() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+              btn.classList.remove('active');
+            });
+            this.classList.add('active');
+            currentFilter = this.dataset.filter;
+            renderTodos();
+          });
+        });
+
+        // Event listener untuk pencarian
+        searchInput.addEventListener('input', function(e) {
+          searchQuery = e.target.value.toLowerCase();
+          renderTodos();
+        });
+
+        // Event listener untuk clear search
+        clearSearch.addEventListener('click', function() {
+          searchInput.value = '';
+          searchQuery = '';
+          renderTodos();
+        });
+
+        // Event listener untuk form submit
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          const todoInput = document.getElementById("todoInput");
+          const todoText = todoInput.value.trim();
+
+          if (todoText === "") {
+            alert("Todo tidak boleh kosong!");
+            return;
+          }
+
+          // Validasi duplikat
+          const isDuplicate = todos.some(todo => 
+            todo.todo.toLowerCase() === todoText.toLowerCase()
+          );
+
+          if (isDuplicate) {
+            validationFeedback.classList.remove('d-none');
+            return;
+          }
+
+          validationFeedback.classList.add('d-none');
+
+          // Tambahkan todo baru
+          todos.unshift({
+            id: Date.now(),
+            todo: todoText,
+            completed: false,
+          });
+
+          todoInput.value = "";
+          saveTodos();
+          renderTodos();
+        });
+
+        // Render todos awal
+        renderTodos();
+      });
+    </script>
+  </body>
+</html>
