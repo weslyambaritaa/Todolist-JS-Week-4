@@ -1,0 +1,6 @@
+.todo-item {
+  cursor: move;
+}
+.sortable-ghost {
+  opacity: 0.5;
+}
